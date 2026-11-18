@@ -37,20 +37,58 @@ export interface TrainerControl {
   stop: () => Promise<void>
 }
 
+export class TrainerRefused extends Error {}
+
+/** FTMS control point result codes (0x01 = success). */
+export function describeResult(code: number): string {
+  switch (code) {
+    case 0x01:
+      return 'accepted'
+    case 0x02:
+      return 'not supported by this trainer'
+    case 0x03:
+      return 'invalid parameter (outside what the trainer accepts)'
+    case 0x04:
+      return 'operation failed'
+    case 0x05:
+      return 'control not permitted (another app may be controlling it)'
+    default:
+      return `result code 0x${code.toString(16)}`
+  }
+}
+
 const emptySlot: Slot = { status: 'idle', name: null, error: null, mock: false }
+
+/** One trainer control-point exchange, kept for the diagnostics panel. */
+export interface CmdLog {
+  at: number
+  label: string
+  bytes: string
+  ok: boolean
+  detail: string
+}
 
 interface DevState {
   slots: Record<Kind, Slot>
   trainerInfo: TrainerInfo | null
+  /** Set when the trainer refuses/ignores a target; cleared by the next accepted one. */
+  trainerWarning: string | null
+  log: CmdLog[]
   patch: (kind: Kind, p: Partial<Slot>) => void
   setInfo: (i: TrainerInfo | null) => void
+  setWarning: (w: string | null) => void
+  addLog: (l: Omit<CmdLog, 'at'>) => void
 }
 
 export const useDevices = create<DevState>((set) => ({
   slots: { trainer: emptySlot, hr: emptySlot, cadence: emptySlot },
   trainerInfo: null,
+  trainerWarning: null,
+  log: [],
   patch: (kind, p) => set((s) => ({ slots: { ...s.slots, [kind]: { ...s.slots[kind], ...p } } })),
   setInfo: (trainerInfo) => set({ trainerInfo }),
+  setWarning: (trainerWarning) => set({ trainerWarning }),
+  addLog: (l) => set((s) => ({ log: [{ ...l, at: Date.now() }, ...s.log].slice(0, 30) })),
 }))
 
 const patch = (kind: Kind, p: Partial<Slot>) => useDevices.getState().patch(kind, p)
@@ -119,36 +157,59 @@ const setupTrainer: Setup = async (server) => {
 
   // control point: writes need a matching indication before the next command
   const cp = await svc.getCharacteristic(UUID.CONTROL_POINT)
-  let waiter: ((ok: boolean) => void) | null = null
+  let waiter: ((r: ReturnType<typeof parseControlResponse>) => void) | null = null
+  let pendingOp = -1
   const onCp = (e: Event) => {
     const r = parseControlResponse((e.target as BluetoothRemoteGATTCharacteristic).value!)
-    if (r && waiter) waiter(r.ok)
+    if (r && waiter && r.op === pendingOp) waiter(r)
   }
   cp.addEventListener('characteristicvaluechanged', onCp)
   await cp.startNotifications()
 
   let queue: Promise<unknown> = Promise.resolve()
-  const send = (bytes: Uint8Array) => {
-    const run = async () => {
-      const response = new Promise<boolean>((resolve) => {
+  /** Writes a command and waits for the trainer's reply. Every exchange is logged for diagnostics. */
+  const send = (bytes: Uint8Array, label: string) => {
+    const run = async (): Promise<boolean> => {
+      pendingOp = bytes[0]
+      const response = new Promise<ReturnType<typeof parseControlResponse>>((resolve) => {
         waiter = resolve
-        setTimeout(() => resolve(false), 2000)
+        setTimeout(() => resolve(null), 2000)
       })
       await cp.writeValueWithResponse(bytes as BufferSource)
-      return response
+      const r = await response
+      useDevices.getState().addLog({
+        label,
+        bytes: [...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' '),
+        ok: !!r?.ok,
+        detail: r ? describeResult(r.code) : 'no reply from trainer (2 s)',
+      })
+      if (!r?.ok) throw new TrainerRefused(r ? describeResult(r.code) : 'no reply from trainer')
+      return true
     }
     const p = queue.then(run, run)
     queue = p.catch(() => undefined)
     return p
   }
 
-  if (!(await send(cmd.requestControl()))) throw new Error('Trainer refused control. Close other apps (Zwift etc) and retry.')
+  try {
+    await send(cmd.requestControl(), 'Request control')
+  } catch {
+    throw new Error('Trainer refused control. Close other apps (Zwift etc) and retry.')
+  }
 
   setTrainerControl({
-    setTargetPower: async (w) => void (await send(cmd.targetPower(w))),
-    setGrade: async (g) => void (await send(cmd.simulation(g))),
-    start: async () => void (await send(cmd.start())),
-    stop: async () => void (await send(cmd.stop())),
+    setTargetPower: async (w) => {
+      try {
+        await send(cmd.targetPower(w), `Set power ${w} W`)
+        useDevices.getState().setWarning(null)
+      } catch (e) {
+        if (e instanceof TrainerRefused) useDevices.getState().setWarning(`Trainer refused ${w} W: ${e.message}`)
+        throw e
+      }
+    },
+    setGrade: async (g) => void (await send(cmd.simulation(g), `Set grade ${g}%`)),
+    start: async () => void (await send(cmd.start(), 'Start')),
+    stop: async () => void (await send(cmd.stop(), 'Stop')),
   })
 
   return () => {
@@ -156,6 +217,7 @@ const setupTrainer: Setup = async (server) => {
     cp.removeEventListener('characteristicvaluechanged', onCp)
     setTrainerControl(null)
     useDevices.getState().setInfo(null)
+    useDevices.getState().setWarning(null)
   }
 }
 

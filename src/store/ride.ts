@@ -19,6 +19,7 @@ interface Ride {
   freeTarget: number
   grade: number
   target: number | null // watts currently asked of the trainer
+  cappedFrom: number | null // set when the wanted target exceeded the trainer's reported max
   ftp: number
   samples: Sample[]
   select: (w: Workout | null) => void
@@ -76,6 +77,7 @@ export const useRide = create<Ride>((set, get) => ({
   freeTarget: 120,
   grade: 0,
   target: null,
+  cappedFrom: null,
   ftp: 150,
   samples: [],
 
@@ -150,8 +152,9 @@ function applyNow() {
     useRide.setState({ target: null })
     return
   }
-  const w = clampWatts(planned + s.offsetW)
-  useRide.setState({ target: w })
+  const wanted = Math.max(0, Math.round(planned + s.offsetW))
+  const w = clampWatts(wanted)
+  useRide.setState({ target: w, cappedFrom: w < wanted ? wanted : null })
   sendTarget(w)
 }
 

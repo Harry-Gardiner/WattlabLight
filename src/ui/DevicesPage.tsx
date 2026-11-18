@@ -142,6 +142,35 @@ function DeviceCard({ kind }: { kind: Kind }) {
   )
 }
 
+/** What we sent the trainer and how it answered. Handy when resistance doesn't behave. */
+function Diagnostics() {
+  const log = useDevices((s) => s.log)
+  const info = useDevices((s) => s.trainerInfo)
+  const warning = useDevices((s) => s.trainerWarning)
+  return (
+    <details className="rounded-2xl border border-border bg-surface p-4 text-sm">
+      <summary className="cursor-pointer font-semibold">Trainer diagnostics</summary>
+      <p className="mt-2 text-muted">
+        {info
+          ? `Reported power range ${info.min}-${info.max} W · ERG ${info.erg ? 'yes' : 'no'} · slope ${info.sim ? 'yes' : 'no'}`
+          : 'No trainer connected.'}
+      </p>
+      {warning && <p className="mt-1 text-z5">{warning}</p>}
+      {log.length === 0 ? (
+        <p className="mt-2 text-muted">No commands sent yet. Start a ride, then check back here.</p>
+      ) : (
+        <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto font-mono text-xs">
+          {log.map((l) => (
+            <li key={l.at + l.label} className={l.ok ? 'text-muted' : 'text-z5'}>
+              {new Date(l.at).toLocaleTimeString()} · {l.label} [{l.bytes}] → {l.detail}
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  )
+}
+
 export function DevicesPage() {
   const mock = useDevices((s) => s.slots.trainer.mock)
   const supported = bluetoothSupported()
@@ -173,6 +202,8 @@ export function DevicesPage() {
       <DeviceCard kind="trainer" />
       <DeviceCard kind="hr" />
       <DeviceCard kind="cadence" />
+
+      <Diagnostics />
 
       <section className="rounded-2xl border border-dashed border-border p-4">
         <h2 className="flex items-center gap-2 font-semibold">

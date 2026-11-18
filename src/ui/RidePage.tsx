@@ -160,6 +160,24 @@ function RunningView() {
     : (target ?? 0)
   const gaugeMax = Math.ceil(Math.max(ftp * 1.5, peak * 1.15) / 50) * 50
 
+  const warning = useDevices((s) => s.trainerWarning)
+  const info = useDevices((s) => s.trainerInfo)
+  // 10 s in a row well under target while pedalling: trainer isn't delivering what we asked for
+  const recent = r.samples.slice(-10)
+  const unreachable =
+    !warning &&
+    target != null &&
+    target > 0 &&
+    (tel.cadence ?? 0) > 40 &&
+    recent.length >= 10 &&
+    recent.every((s) => (s.power ?? 0) < 0.8 * (s.target ?? 0))
+  const notices: string[] = []
+  if (warning) notices.push(`${warning}. It keeps the last target it accepted.`)
+  if (r.cappedFrom != null && info)
+    notices.push(`Capped: you asked for ${r.cappedFrom} W but this trainer reports a ${info.max} W maximum.`)
+  if (unreachable)
+    notices.push('Trainer is not reaching the target. Try a harder gear and 80-90 rpm, or the target is above what it can deliver.')
+
   let cue: { text: string; color: string } | null = null
   if (target != null && power != null && target > 0) {
     const d = (power - target) / target
@@ -177,6 +195,16 @@ function RunningView() {
           {status === 'paused' && <b className="ml-2 text-z4">PAUSED</b>}
         </span>
       </div>
+
+      {notices.length > 0 && (
+        <div className="space-y-1 rounded-2xl border border-z5 bg-surface p-3 text-sm" role="alert">
+          {notices.map((n) => (
+            <p key={n} className="text-z5">
+              {n}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-3xl bg-surface p-4">
         <PowerGauge
@@ -204,6 +232,11 @@ function RunningView() {
           </div>
           <div className="text-lg text-muted">watts</div>
         </PowerGauge>
+        {info && (
+          <p className="mt-1 text-center text-xs text-muted">
+            Trainer range {info.min}-{info.max} W
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2">

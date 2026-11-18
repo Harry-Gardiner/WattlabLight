@@ -15,8 +15,26 @@ export function startMockDevices() {
   let power = 0
   let hr = 78
 
+  // ?mockMax=150 makes the demo trainer behave like one that refuses targets above 150 W
+  const mockMax = Number(new URLSearchParams(location.search).get('mockMax')) || Infinity
+
   setTrainerControl({
-    setTargetPower: async (w) => void (target = w),
+    setTargetPower: async (w) => {
+      const ok = w <= mockMax
+      dev.addLog({
+        label: `Set power ${w} W`,
+        bytes: '05',
+        ok,
+        detail: ok ? 'accepted' : 'invalid parameter (outside what the trainer accepts)',
+      })
+      if (ok) {
+        target = w
+        dev.setWarning(null)
+      } else {
+        dev.setWarning(`Trainer refused ${w} W: invalid parameter (outside what the trainer accepts)`)
+        throw new Error('refused')
+      }
+    },
     setGrade: async (g) => void ((grade = g), (target = null)),
     start: async () => void (running = true),
     stop: async () => void ((running = false), (target = null)),

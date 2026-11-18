@@ -6,6 +6,7 @@ import { useRide } from '../store/ride'
 import { useActiveProfile } from '../store/settings'
 import { useTelemetry } from '../store/telemetry'
 import { fmtTime, locate, rideStats, toWatts, totalSec, zoneColor } from '../workout/engine'
+import { PowerGauge } from './PowerGauge'
 import { ProfileChart } from './ProfileChart'
 
 function Tile({ label, value, unit }: { label: string; value: number | string | null; unit: string }) {
@@ -153,6 +154,11 @@ function RunningView() {
   const goingUp = !!next && !!loc && next.from > loc.step.to
   const power = tel.power3
   const pct = power != null ? (power / ftp) * 100 : 0
+  // full-arc watts: fixed per workout (rounded up to 50) so the gauge doesn't rescale mid-ride
+  const peak = workout
+    ? (Math.max(...workout.steps.flatMap((s) => [s.from, s.to])) / 100) * ftp * r.scale
+    : (target ?? 0)
+  const gaugeMax = Math.ceil(Math.max(ftp * 1.5, peak * 1.15) / 50) * 50
 
   let cue: { text: string; color: string } | null = null
   if (target != null && power != null && target > 0) {
@@ -172,15 +178,32 @@ function RunningView() {
         </span>
       </div>
 
-      <div className="rounded-3xl bg-surface p-4 text-center">
-        <div className="font-display text-8xl font-bold leading-none" style={{ color: zoneColor(pct) }} aria-live="off">
-          {power ?? '--'}
-          <span className="text-3xl text-muted"> W</span>
-        </div>
-        <div className="mt-1 flex items-center justify-center gap-3 text-lg">
-          {target != null && <span>target <b>{target} W</b></span>}
-          {cue && <span style={{ color: cue.color }}>{cue.text}</span>}
-        </div>
+      <div className="rounded-3xl bg-surface p-4">
+        <PowerGauge
+          power={power}
+          target={target}
+          max={gaugeMax}
+          ftp={ftp}
+          footer={
+            <div className="flex flex-col items-center text-base leading-tight">
+              {target != null && (
+                <span>
+                  target <b>{target} W</b>
+                </span>
+              )}
+              {cue && (
+                <span className="text-sm font-medium" style={{ color: cue.color }}>
+                  {cue.text}
+                </span>
+              )}
+            </div>
+          }
+        >
+          <div className="font-display text-7xl font-bold leading-none" style={{ color: zoneColor(pct) }}>
+            {power ?? '--'}
+          </div>
+          <div className="text-lg text-muted">watts</div>
+        </PowerGauge>
       </div>
 
       <div className="grid grid-cols-3 gap-2">

@@ -75,17 +75,24 @@ function ReadyView() {
             ))}
           </div>
           {freeMode === 'erg' ? (
-            <div className="flex items-center justify-between">
-              <button className="btn-secondary" onClick={() => nudge(-10)} aria-label="10 watts lower">
-                <Minus className="size-5" />
-              </button>
-              <span className="font-display text-5xl font-semibold">
+            <div className="space-y-2">
+              <div className="text-center font-display text-6xl font-semibold">
                 {freeTarget}
-                <span className="text-lg text-muted"> W</span>
-              </span>
-              <button className="btn-secondary" onClick={() => nudge(10)} aria-label="10 watts higher">
-                <Plus className="size-5" />
-              </button>
+                <span className="text-xl text-muted"> W</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[-50, -10, 10, 50].map((d) => (
+                  <button
+                    key={d}
+                    className="btn-secondary min-h-16 text-xl"
+                    onClick={() => nudge(d)}
+                    aria-label={`${Math.abs(d)} watts ${d < 0 ? 'lower' : 'higher'}`}
+                  >
+                    {d > 0 ? '+' : '−'}
+                    {Math.abs(d)}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             <GradeSlider grade={grade} onChange={setGrade} />
@@ -215,17 +222,41 @@ function RunningView() {
         </div>
       )}
 
-      <div className="mt-auto grid grid-cols-5 gap-2">
-        {(r.freeMode === 'erg' || workout) && (
-          <>
-            <button className="btn-secondary justify-center" onClick={() => r.nudge(-5)} aria-label="5 watts lower">
-              <Minus className="size-5" /> 5
+      {(r.freeMode === 'erg' || workout) && (
+        <div className="mt-auto space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="btn-secondary min-h-20 gap-1 text-3xl"
+              onClick={() => r.nudge(-5)}
+              aria-label="5 watts lower"
+            >
+              <Minus className="size-9" aria-hidden /> 5
             </button>
-            <button className="btn-secondary justify-center" onClick={() => r.nudge(5)} aria-label="5 watts higher">
-              <Plus className="size-5" /> 5
+            <button
+              className="btn-secondary min-h-20 gap-1 text-3xl"
+              onClick={() => r.nudge(5)}
+              aria-label="5 watts higher"
+            >
+              <Plus className="size-9" aria-hidden /> 5
             </button>
-          </>
-        )}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[-50, -10, 10, 50].map((d) => (
+              <button
+                key={d}
+                className="btn-secondary min-h-16 text-xl"
+                onClick={() => r.nudge(d)}
+                aria-label={`${Math.abs(d)} watts ${d < 0 ? 'lower' : 'higher'}`}
+              >
+                {d > 0 ? '+' : '−'}
+                {Math.abs(d)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className={`grid gap-2 ${workout ? 'grid-cols-3' : 'grid-cols-2'} ${r.freeMode === 'sim' && !workout ? 'mt-auto' : ''}`}>
         {status === 'running' ? (
           <button className="btn-secondary justify-center" onClick={r.pause} aria-label="Pause">
             <Pause className="size-5" />

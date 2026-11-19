@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Minus, Pause, Play, Plus, SkipForward, Square } from 'lucide-react'
 import { useDevices } from '../ble/devices'
 import { useWakeLock } from '../lib/useWakeLock'
@@ -146,6 +147,12 @@ function RunningView() {
   const tel = useTelemetry()
   const { workout, elapsed, target, status, ftp } = r
   useWakeLock(status === 'running')
+  const [confirmEnd, setConfirmEnd] = useState(false)
+  useEffect(() => {
+    if (!confirmEnd) return
+    const id = setTimeout(() => setConfirmEnd(false), 3000)
+    return () => clearTimeout(id)
+  }, [confirmEnd])
 
   const loc = workout ? locate(workout, elapsed) : null
   const next = workout && loc ? workout.steps[loc.index + 1] : null
@@ -327,8 +334,12 @@ function RunningView() {
             <SkipForward className="size-5" />
           </button>
         )}
-        <button className="btn-danger justify-center" onClick={r.end} aria-label="End ride">
-          <Square className="size-5" />
+        <button
+          className="btn-danger justify-center"
+          onClick={() => (confirmEnd ? r.end() : setConfirmEnd(true))}
+          aria-label={confirmEnd ? 'Tap again to end ride' : 'End ride'}
+        >
+          {confirmEnd ? 'Tap again to end' : <Square className="size-5" />}
         </button>
       </div>
     </div>
@@ -355,7 +366,9 @@ function DoneView() {
     <div className="space-y-4 p-4">
       <header>
         <h1 className="font-display text-3xl font-semibold">Ride complete</h1>
-        <p className="text-sm text-muted">{workout ? workout.name : 'Free ride'}. Nice work.</p>
+        <p className="text-sm text-muted">
+          {workout ? workout.name : 'Free ride'}. Nice work.{samples.length >= 30 && ' Saved to History.'}
+        </p>
       </header>
       {workout && <ProfileChart workout={workout} height={90} samples={samples} ftp={ftp} className="rounded-xl" />}
       <div className="grid grid-cols-2 gap-2">

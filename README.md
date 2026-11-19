@@ -6,6 +6,8 @@ Indoor cycling app for a Bluetooth smart trainer. Runs in Chrome on Android, ins
 - ERG (fixed watts) and slope control
 - 12 preset workouts, all with warm-up and cool-down, with an upcoming-intervals timeline and countdown cues
 - Per-rider FTP profiles
+- Ride history saved on-device (rides of 30 s or more) with avg/NP/TSS and delete
+- End-ride button needs a second tap so a stray touch can't stop a session
 
 ## Use it
 Open the site in Chrome on Android, then menu → **Install app**. Bluetooth needs Chrome (not iOS browsers).

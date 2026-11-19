@@ -1,8 +1,9 @@
-import { Bike, Dumbbell, Radio, Settings } from 'lucide-react'
+import { Bike, Dumbbell, History, Radio, Settings } from 'lucide-react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { type Tab, useNav } from './store/nav'
 import { useRide } from './store/ride'
 import { DevicesPage } from './ui/DevicesPage'
+import { HistoryPage } from './ui/HistoryPage'
 import { RidePage } from './ui/RidePage'
 import { SettingsPage } from './ui/SettingsPage'
 import { WorkoutsPage } from './ui/WorkoutsPage'
@@ -11,6 +12,7 @@ const TABS: { id: Tab; label: string; icon: typeof Bike }[] = [
   { id: 'devices', label: 'Devices', icon: Radio },
   { id: 'workouts', label: 'Workouts', icon: Dumbbell },
   { id: 'ride', label: 'Ride', icon: Bike },
+  { id: 'history', label: 'History', icon: History },
   { id: 'settings', label: 'Profile', icon: Settings },
 ]
 
@@ -37,10 +39,11 @@ export default function App() {
         {tab === 'devices' && <DevicesPage />}
         {tab === 'workouts' && <WorkoutsPage />}
         {tab === 'ride' && <RidePage />}
+        {tab === 'history' && <HistoryPage />}
         {tab === 'settings' && <SettingsPage />}
       </main>
 
-      <nav className="grid grid-cols-4 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]" aria-label="Main">
+      <nav className="grid grid-cols-5 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]" aria-label="Main">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}

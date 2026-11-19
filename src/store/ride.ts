@@ -3,6 +3,8 @@ import { getTrainerControl, useDevices } from '../ble/devices'
 import { type Sample, locate, pctAt, toWatts, totalSec } from '../workout/engine'
 import type { Workout } from '../workout/types'
 import { beep, unlockAudio, vibrate } from '../lib/cues'
+import { buildRecord } from '../lib/record'
+import { useHistory } from './history'
 import { useSettings } from './settings'
 import { useTelemetry } from './telemetry'
 
@@ -37,6 +39,7 @@ interface Ride {
 
 let timer: ReturnType<typeof setInterval> | null = null
 let lastSent: number | null = null
+let startedAt = 0
 
 const stopTimer = () => {
   if (timer) clearInterval(timer)
@@ -103,6 +106,7 @@ export const useRide = create<Ride>((set, get) => ({
     const profiles = useSettings.getState()
     const ftp = (profiles.profiles.find((p) => p.id === profiles.activeId) ?? profiles.profiles[0]).ftp
     unlockAudio() // must happen inside the tap
+    startedAt = Date.now()
     set({ status: 'running', elapsed: 0, samples: [], ftp, offsetW: 0 })
     lastSent = null
     const ctl = getTrainerControl()
@@ -161,6 +165,17 @@ function applyNow() {
 function finish() {
   stopTimer()
   useRide.setState({ status: 'done', target: null })
+  const s = useRide.getState()
+  const settings = useSettings.getState()
+  const rec = buildRecord({
+    startedAt,
+    name: s.workout?.name ?? 'Free ride',
+    workoutId: s.workout?.id ?? null,
+    rider: (settings.profiles.find((p) => p.id === settings.activeId) ?? settings.profiles[0]).name,
+    ftp: s.ftp,
+    samples: s.samples,
+  })
+  if (rec) void useHistory.getState().add(rec)
   getTrainerControl()?.stop().catch(() => undefined)
   lastSent = null
 }
